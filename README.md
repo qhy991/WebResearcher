@@ -53,12 +53,10 @@ pip install -r requirements.txt
 cp .env.template .env
 ```
 
-编辑 `.env` 文件，设置你的API密钥和代理:
+编辑 `.env` 文件，设置你的API密钥:
 
 ```bash
 TAVILY_API_KEY=your_api_key_here
-HTTP_PROXY=http://10.20.5.43:7891
-HTTPS_PROXY=http://10.20.5.43:7891
 ```
 
 ## 使用方法
@@ -84,12 +82,6 @@ cd src
 python cli.py -q "tensor core optimization techniques"
 ```
 
-### 使用代理
-
-```bash
-python cli.py -q "CUDA kernel" --proxy http://10.20.5.43:7891
-```
-
 ### 保存搜索结果
 
 ```bash
@@ -112,13 +104,12 @@ python cli.py \
 以下是一个完整的运行示例，展示如何使用CUTLASS编写w8a8 GEMM CUDA kernel的搜索结果:
 
 ```bash
-python cli.py -q "how to use CUTLASS to write a w8a8 GEMM CUDA kernel" --proxy http://10.20.5.43:7891
+python cli.py -q "how to use CUTLASS to write a w8a8 GEMM CUDA kernel"
 ```
 
 **运行输出:**
 
 ```
-2026-01-26 09:51:21,171 - gpu_kernel_search_agent - INFO - 代理已设置: http://10.20.5.43:7891
 2026-01-26 09:51:21,171 - gpu_kernel_search_agent - INFO - GPU Kernel搜索Agent初始化完成
 搜索查询: how to use CUTLASS to write a w8a8 GEMM CUDA kernel
 
@@ -183,10 +174,10 @@ import asyncio
 from gpu_kernel_search_agent import GPUKernelSearchAgent
 
 async def search_example():
-    # 创建Agent
+    # 创建Agent（不使用代理）
     agent = GPUKernelSearchAgent(
         api_key="your_api_key",
-        proxy="http://10.20.5.43:7891",
+        proxy=None,  # 不使用代理
         max_results=10,
         search_depth="advanced"
     )
@@ -260,7 +251,7 @@ cp .env.template .env
 | 参数 | 环境变量 | 说明 | 默认值 |
 |------|---------|------|--------|
 | `api_key` | `TAVILY_API_KEY` | Tavily API密钥 | 必填 |
-| `proxy` | `HTTP_PROXY` / `HTTPS_PROXY` | HTTP代理地址 | 可选 |
+| `proxy` | - | HTTP代理地址（可选，通常不需要） | None |
 | `max_results` | `MAX_RESULTS` | 最大返回结果数 | 10 |
 | `search_depth` | `SEARCH_DEPTH` | 搜索深度 (basic/advanced) | advanced |
 | `include_answer` | - | 是否包含AI生成的答案 | True |

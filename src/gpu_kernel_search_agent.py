@@ -820,13 +820,10 @@ async def main():
     # API密钥
     API_KEY = "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"
 
-    # 代理设置
-    PROXY = "http://10.20.5.43:7891"
-
-    # 创建搜索Agent
+    # 创建搜索Agent（不使用代理）
     agent = GPUKernelSearchAgent(
         api_key=API_KEY,
-        proxy=PROXY,
+        proxy=None,  # 不使用代理
         max_results=10,
         search_depth="advanced",
         include_answer=True
