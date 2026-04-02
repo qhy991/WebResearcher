@@ -4,9 +4,9 @@ GPU Kernel Optimization专用检索Agent
 """
 
 import os
-import sys
 import json
 import asyncio
+import tempfile
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -39,23 +39,45 @@ try:
 except ImportError:
     OLLAMA_AVAILABLE = False
 
-# 添加项目根目录到 Python 路径
-project_root = Path(__file__).parent.parent
-if str(project_root) not in sys.path:
-    sys.path.insert(0, str(project_root))
-
-from config.search_domains import GPU_KERNEL_KEYWORDS, QUERY_CATEGORIES, QUALITY_INDICATORS
+from gpu_kernel_search_agent.config.search_domains import GPU_KERNEL_KEYWORDS, QUERY_CATEGORIES, QUALITY_INDICATORS
 
 # 初始化rich console
 console = Console()
 
-# 配置日志 - 同时输出到控制台和文件
-log_dir = project_root / "logs"
-log_dir.mkdir(exist_ok=True)
+# 配置日志 - 同时输出到控制台和文件（项目目录不可写时回退到用户缓存 / 系统临时目录）
+def _resolve_log_dir(base: Path) -> Path:
+    env_dir = os.environ.get("WEBRESEARCHER_LOG_DIR", "").strip()
+    candidates = []
+    if env_dir:
+        candidates.append(Path(env_dir).expanduser())
+    candidates.extend(
+        [
+            base / "logs",
+            Path.home() / ".cache" / "webresearcher" / "logs",
+            Path(tempfile.gettempdir()) / "webresearcher" / "logs",
+        ]
+    )
+    for d in candidates:
+        try:
+            d.mkdir(parents=True, exist_ok=True)
+            probe = d / ".write_probe"
+            probe.write_text("", encoding="utf-8")
+            try:
+                probe.unlink()
+            except OSError:
+                pass
+            return d
+        except OSError:
+            continue
+    return Path(tempfile.gettempdir())
 
-# 创建文件处理器
+
+log_dir = _resolve_log_dir(Path.cwd())
 log_file = log_dir / f"search_{datetime.now().strftime('%Y%m%d')}.log"
-file_handler = logging.FileHandler(log_file, encoding='utf-8')
+try:
+    file_handler = logging.FileHandler(log_file, encoding="utf-8")
+except OSError:
+    file_handler = logging.NullHandler()
 file_handler.setLevel(logging.INFO)
 file_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 file_handler.setFormatter(file_formatter)
@@ -791,9 +813,9 @@ class GPUKernelSearchAgent:
             response: 搜索响应
             output_dir: 输出目录（相对于项目根目录）
         """
-        # 确保输出目录是相对于项目根目录的
+        # 确保输出目录（相对路径基于当前工作目录）
         if not os.path.isabs(output_dir):
-            output_dir = project_root / output_dir
+            output_dir = Path.cwd() / output_dir
         else:
             output_dir = Path(output_dir)
         

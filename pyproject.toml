@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "webresearcher"
+version = "1.0.0"
+description = "GPU Kernel Optimization Search Agent powered by Tavily API"
+requires-python = ">=3.10"
+dependencies = [
+    "tavily-python>=0.5.0",
+    "requests>=2.31.0",
+    "python-dotenv>=1.0.0",
+    "openai>=1.0.0",
+    "anthropic>=0.18.0",
+    "pydantic>=2.0.0",
+    "colorlog>=6.8.0",
+    "aiohttp>=3.9.0",
+    "rich>=13.7.0",
+]
+
+[project.scripts]
+webresearcher = "gpu_kernel_search_agent.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["gpu_kernel_search_agent*"]

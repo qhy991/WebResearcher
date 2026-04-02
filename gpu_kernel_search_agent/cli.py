@@ -18,10 +18,7 @@ try:
 except ImportError:
     pass  # python-dotenv未安装时跳过
 
-# 添加src到路径
-sys.path.insert(0, str(Path(__file__).parent))
-
-from gpu_kernel_search_agent import GPUKernelSearchAgent, console, Panel
+from gpu_kernel_search_agent.gpu_kernel_search_agent import GPUKernelSearchAgent, console, Panel
 from rich.prompt import Prompt
 from rich import box
 
