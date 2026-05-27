@@ -39,7 +39,14 @@ try:
 except ImportError:
     OLLAMA_AVAILABLE = False
 
-from gpu_kernel_search_agent.config.search_domains import GPU_KERNEL_KEYWORDS, QUERY_CATEGORIES, QUALITY_INDICATORS
+from gpu_kernel_search_agent.config.search_domains import (
+    QUERY_CATEGORIES,
+    QUALITY_INDICATORS,
+    SearchDomainProfile,
+    calculate_relevance,
+    enhance_query,
+    get_search_profile,
+)
 
 # 初始化rich console
 console = Console()
@@ -517,14 +524,11 @@ class AnswerGenerator:
 
 class GPUKernelSearchAgent:
     """
-    GPU Kernel优化专用检索Agent
+    Domain-aware web search agent (Tavily-backed).
 
-    特点:
-    1. 使用Tavily API进行高质量网络检索
-    2. 针对GPU Kernel优化领域的专业检索
-    3. 自动增强查询以获得更好的搜索结果
-    4. 支持代理设置
-    5. 可选使用LLM生成详细答案
+    The class name is kept for backward compatibility; use the ``domain`` argument
+    to select a profile (``kernel``, ``general``, ``code_quality``, ``lpu``,
+    ``review``, …) or pass a custom :class:`SearchDomainProfile`.
     """
 
     def __init__(
@@ -539,22 +543,16 @@ class GPUKernelSearchAgent:
         llm_provider: str = "openai",  # "openai", "anthropic", or "ollama"
         llm_api_key: Optional[str] = None,
         llm_model: Optional[str] = None,
-        ollama_base_url: str = "http://localhost:11434"
+        ollama_base_url: str = "http://localhost:11434",
+        domain: str = "kernel",
+        search_profile: Optional[SearchDomainProfile] = None,
     ):
         """
-        初始化搜索Agent
-
         Args:
             api_key: Tavily API密钥
-            proxy: 代理地址 (如: http://10.20.5.43:7891)
-            max_results: 最大返回结果数
-            search_depth: 搜索深度 (basic/advanced)
-            include_answer: 是否包含AI生成的答案
-            include_raw_content: 是否包含原始内容
-            use_llm_answer: 是否使用LLM生成详细答案（需要配置LLM API密钥）
-            llm_provider: LLM提供商 ("openai" 或 "anthropic")
-            llm_api_key: LLM API密钥
-            llm_model: LLM模型名称
+            proxy: 代理地址
+            domain: 搜索领域 profile 名称（kernel / general / code_quality / lpu / review）
+            search_profile: 可选，直接传入自定义 profile（优先于 domain）
         """
         self.api_key = api_key
         self.proxy = proxy
@@ -563,6 +561,8 @@ class GPUKernelSearchAgent:
         self.include_answer = include_answer
         self.include_raw_content = include_raw_content
         self.use_llm_answer = use_llm_answer
+        self.search_profile = search_profile or get_search_profile(domain)
+        self.domain = self.search_profile.name
 
         # 设置代理环境变量
         if proxy:
@@ -580,68 +580,24 @@ class GPUKernelSearchAgent:
                 provider=llm_provider,
                 api_key=llm_api_key,
                 model=llm_model,
-                proxy=proxy
+                proxy=proxy,
+                ollama_base_url=ollama_base_url,
             )
             logger.info(f"已启用LLM详细答案生成器 ({llm_provider})")
         
-        logger.info("GPU Kernel搜索Agent初始化完成")
+        logger.info(
+            "Web search agent initialized (profile=%s, display=%s)",
+            self.domain,
+            self.search_profile.display_name,
+        )
 
     def _enhance_query(self, query: str) -> str:
-        """
-        增强查询以获得更好的GPU Kernel优化相关结果
-
-        Args:
-            query: 原始查询
-
-        Returns:
-            增强后的查询
-        """
-        # 自动添加CUDA/GPU上下文
-        enhanced = query
-
-        # 如果查询中已经没有这些关键词，添加上下文
-        context_keywords = ['cuda', 'gpu', 'kernel', 'optimization', 'nvidia']
-        query_lower = query.lower()
-
-        if not any(kw in query_lower for kw in context_keywords):
-            # 尝试推断查询类别
-            for category, keywords in QUERY_CATEGORIES.items():
-                if any(kw in query_lower for kw in keywords):
-                    enhanced = f"{query} {category} GPU CUDA optimization"
-                    break
-            else:
-                enhanced = f"{query} GPU CUDA kernel optimization"
-
-        return enhanced
+        return enhance_query(query, self.search_profile)
 
     def _calculate_relevance(self, result: Dict[str, Any]) -> str:
-        """
-        计算搜索结果的相关性
-
-        Args:
-            result: 搜索结果
-
-        Returns:
-            相关性等级 (high/medium/low)
-        """
         url = result.get('url', '')
-        content = (result.get('content', '') or '').lower()
-
-        # 检查来源质量
-        for domain in QUALITY_INDICATORS['high']:
-            if domain in url:
-                return 'high'
-
-        # 检查内容相关性
-        gpu_keywords = ['cuda', 'gpu', 'kernel', 'optimization', 'tensor core', 'shared memory']
-        keyword_count = sum(1 for kw in gpu_keywords if kw in content)
-
-        if keyword_count >= 3:
-            return 'high'
-        elif keyword_count >= 1:
-            return 'medium'
-        else:
-            return 'low'
+        content = result.get('content', '') or ''
+        return calculate_relevance(url, content, self.search_profile)
 
     def _parse_search_results(self, response: Dict[str, Any], query: str) -> SearchResponse:
         """
